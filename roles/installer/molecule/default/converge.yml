@@ -1,0 +1,57 @@
+---
+# =============================================================================
+# Kickstart Generation — Static Network + LVM
+# =============================================================================
+- name: Converge | Kickstart (static + LVM)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    rocky_installer_mode: kickstart
+    rocky_root_password: "moleculetest"
+    rocky_kickstart_network:
+      method: static
+      device: eth0
+      hostname: test-server
+      ip: "192.168.1.100"
+      netmask: "255.255.255.0"
+      gateway: "192.168.1.1"
+      nameserver: "1.1.1.1"
+    rocky_disk:
+      device: sda
+      method: lvm
+      vg_name: rocky
+      lv_root_size: 0
+      lv_swap_size: 4096
+    rocky_selinux: enforcing
+    rocky_kickstart_firewall_services:
+      - ssh
+      - http
+    rocky_proxy: "http://test-proxy:3128"
+    rocky_admin_user: admin
+    rocky_admin_ssh_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAnsibleKey admin@molecule"
+    rocky_kickstart_network_secondary:
+      ip: "10.0.0.100"
+      prefix: 24
+    rocky_kickstart_output: "{{ playbook_dir }}/.tmp/kickstart-static-lvm.cfg"
+
+  tasks:
+    - name: Include installer role (static + LVM)  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/../.."
+
+# =============================================================================
+# Post-Install Bootstrap
+# =============================================================================
+- name: Converge | Post-install bootstrap
+  hosts: all
+  gather_facts: true
+
+  vars:
+    rocky_installer_mode: post_install
+
+  tasks:
+    - name: Include installer role (post_install mode)  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/../.."

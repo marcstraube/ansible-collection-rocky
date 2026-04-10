@@ -1,0 +1,115 @@
+---
+# =============================================================================
+# Kickstart Verification — DHCP + Auto Partitioning
+# =============================================================================
+- name: Verify | Kickstart (DHCP + auto)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    kickstart_file: "{{ playbook_dir }}/.tmp/kickstart-dhcp-auto.cfg"
+
+  tasks:
+    # =========================================================================
+    # FILE EXISTS
+    # =========================================================================
+    - name: Check kickstart file exists
+      ansible.builtin.stat:
+        path: "{{ kickstart_file }}"
+      register: ks_stat
+
+    - name: Assert kickstart file exists
+      ansible.builtin.assert:
+        that:
+          - ks_stat.stat.exists
+          - ks_stat.stat.size > 0
+        fail_msg: "DHCP kickstart file does not exist or is empty"
+
+    - name: Read kickstart file
+      ansible.builtin.slurp:
+        src: "{{ kickstart_file }}"
+      register: ks_content
+
+    - name: Set kickstart content fact
+      ansible.builtin.set_fact:
+        ks: "{{ ks_content.content | b64decode }}"
+
+    # =========================================================================
+    # ROCKY VERSION 9
+    # =========================================================================
+    - name: Verify Rocky 9 install source
+      ansible.builtin.assert:
+        that:
+          - "'repo=BaseOS-9' in ks"
+          - "'repo=AppStream-9' in ks"
+        fail_msg: "Rocky 9 install source not found"
+
+    # =========================================================================
+    # DHCP NETWORK
+    # =========================================================================
+    - name: Verify DHCP network configuration
+      ansible.builtin.assert:
+        that:
+          - "'--bootproto=dhcp' in ks"
+          - "'--hostname=test-dhcp' in ks"
+          - "'--bootproto=static' not in ks"
+        fail_msg: "DHCP network configuration is incorrect"
+
+    # =========================================================================
+    # AUTO PARTITIONING
+    # =========================================================================
+    - name: Verify auto partitioning
+      ansible.builtin.assert:
+        that:
+          - "'autopart --type=lvm --fstype=xfs' in ks"
+          - "'volgroup' not in ks"
+          - "'logvol' not in ks"
+        fail_msg: "Auto partitioning configuration is incorrect"
+
+    # =========================================================================
+    # BOOT DRIVE
+    # =========================================================================
+    - name: Verify boot drive vda
+      ansible.builtin.assert:
+        that:
+          - "'--boot-drive=vda' in ks"
+          - "'--drives=vda' in ks"
+        fail_msg: "Boot drive vda not found"
+
+    # =========================================================================
+    # PERMISSIVE SELINUX
+    # =========================================================================
+    - name: Verify permissive SELinux
+      ansible.builtin.assert:
+        that:
+          - "'selinux --permissive' in ks"
+        fail_msg: "SELinux permissive not found"
+
+    # =========================================================================
+    # NO PROXY
+    # =========================================================================
+    - name: Verify no proxy in DHCP kickstart
+      ansible.builtin.assert:
+        that:
+          - "'--proxy' not in ks"
+          - "'proxy=' not in ks"
+        fail_msg: "Proxy should not be present in DHCP kickstart"
+
+    # =========================================================================
+    # NO SSH KEY (empty)
+    # =========================================================================
+    - name: Verify no SSH key block in DHCP kickstart
+      ansible.builtin.assert:
+        that:
+          - "'authorized_keys' not in ks"
+        fail_msg: "SSH key block should not be present when key is empty"
+
+    # =========================================================================
+    # NO SECONDARY NETWORK
+    # =========================================================================
+    - name: Verify no secondary IP in DHCP kickstart
+      ansible.builtin.assert:
+        that:
+          - "'nmcli' not in ks"
+        fail_msg: "Secondary network should not be present in DHCP kickstart"

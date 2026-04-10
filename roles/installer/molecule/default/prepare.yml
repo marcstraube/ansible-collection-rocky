@@ -1,0 +1,9 @@
+---
+- name: Prepare
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Install base dependencies via raw (avoid dnf module detection issues)
+      ansible.builtin.raw: dnf install -y python3 sudo
+      changed_when: false

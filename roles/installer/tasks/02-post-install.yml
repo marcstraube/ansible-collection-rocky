@@ -1,0 +1,37 @@
+---
+# =============================================================================
+# Post-Install Bootstrap
+# =============================================================================
+# Minimal bootstrap for a freshly installed Rocky Linux system.
+# Verifies the OS, configures proxy if needed, and runs initial update.
+# User management, SSH hardening, and sudo are handled by common roles
+# via the post-install playbook.
+# =============================================================================
+
+- name: Post-Install | Wait for system to become reachable
+  ansible.builtin.wait_for_connection:
+    delay: 10
+    timeout: 300
+
+- name: Post-Install | Gather facts
+  ansible.builtin.setup:
+
+- name: Post-Install | Verify Rocky Linux
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['distribution'] == 'Rocky'
+    fail_msg: "This role only supports Rocky Linux (detected: {{ ansible_facts['distribution'] }})"
+    success_msg: "Running on Rocky Linux {{ ansible_facts['distribution_version'] }}"
+
+- name: Post-Install | Configure dnf proxy
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: '^proxy='
+    line: "proxy={{ rocky_proxy }}"
+  when: rocky_proxy | length > 0
+
+- name: Post-Install | Update all packages  # noqa: package-latest
+  ansible.builtin.dnf:
+    name: '*'
+    state: latest
+    update_cache: true

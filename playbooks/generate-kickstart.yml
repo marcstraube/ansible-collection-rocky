@@ -1,0 +1,20 @@
+---
+# =============================================================================
+# Generate Rocky Linux Kickstart File
+# =============================================================================
+# Usage:
+#   ansible-playbook collections/ansible_collections/marcstraube/rocky/playbooks/generate-kickstart.yml
+#   ansible-playbook collections/ansible_collections/marcstraube/rocky/playbooks/generate-kickstart.yml -l myserver
+# =============================================================================
+
+- name: Generate Rocky Linux Kickstart
+  hosts: rocky_servers
+  gather_facts: false
+  connection: local
+
+  tasks:
+    - name: Include installer role (kickstart mode)
+      ansible.builtin.include_role:
+        name: marcstraube.rocky.installer
+      vars:
+        rocky_installer_mode: kickstart

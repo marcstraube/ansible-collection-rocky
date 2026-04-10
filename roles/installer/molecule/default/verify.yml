@@ -1,0 +1,175 @@
+---
+# =============================================================================
+# Kickstart Verification — Static Network + LVM
+# =============================================================================
+- name: Verify | Kickstart (static + LVM)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    kickstart_file: "{{ playbook_dir }}/.tmp/kickstart-static-lvm.cfg"
+
+  tasks:
+    # =========================================================================
+    # FILE EXISTS
+    # =========================================================================
+    - name: Check kickstart file exists
+      ansible.builtin.stat:
+        path: "{{ kickstart_file }}"
+      register: ks_stat
+
+    - name: Assert kickstart file exists
+      ansible.builtin.assert:
+        that:
+          - ks_stat.stat.exists
+          - ks_stat.stat.size > 0
+        fail_msg: "Kickstart file does not exist or is empty"
+
+    - name: Read kickstart file
+      ansible.builtin.slurp:
+        src: "{{ kickstart_file }}"
+      register: ks_content
+
+    - name: Set kickstart content fact
+      ansible.builtin.set_fact:
+        ks: "{{ ks_content.content | b64decode }}"
+
+    # =========================================================================
+    # SYSTEM CONFIGURATION
+    # =========================================================================
+    - name: Verify firstboot disabled
+      ansible.builtin.assert:
+        that:
+          - "'firstboot --disable' in ks"
+        fail_msg: "firstboot --disable not found in kickstart"
+
+    # =========================================================================
+    # NETWORK CONFIGURATION
+    # =========================================================================
+    - name: Verify static network configuration
+      ansible.builtin.assert:
+        that:
+          - "'--bootproto=static' in ks"
+          - "'--ip=192.168.1.100' in ks"
+          - "'--netmask=255.255.255.0' in ks"
+          - "'--gateway=192.168.1.1' in ks"
+          - "'--nameserver=1.1.1.1' in ks"
+          - "'--hostname=test-server' in ks"
+        fail_msg: "Network configuration is incorrect"
+
+    # =========================================================================
+    # SECONDARY NETWORK
+    # =========================================================================
+    - name: Verify secondary IP configuration
+      ansible.builtin.assert:
+        that:
+          - "'+ipv4.addresses \"10.0.0.100/24\"' in ks"
+        fail_msg: "Secondary IP configuration not found in kickstart"
+
+    # =========================================================================
+    # LVM PARTITIONING
+    # =========================================================================
+    - name: Verify LVM partitioning
+      ansible.builtin.assert:
+        that:
+          - "'volgroup rocky pv.01' in ks"
+          - "'logvol swap' in ks"
+          - "'logvol /' in ks"
+          - "'--vgname=rocky' in ks"
+          - "'--size=4096' in ks"
+        fail_msg: "LVM partitioning configuration is incorrect"
+
+    # =========================================================================
+    # SECURITY
+    # =========================================================================
+    - name: Verify SELinux setting
+      ansible.builtin.assert:
+        that:
+          - "'selinux --enforcing' in ks"
+        fail_msg: "SELinux configuration is incorrect"
+
+    - name: Verify firewall services
+      ansible.builtin.assert:
+        that:
+          - "'firewall --enabled --service=ssh,http' in ks"
+        fail_msg: "Firewall configuration is incorrect"
+
+    # =========================================================================
+    # PROXY
+    # =========================================================================
+    - name: Verify proxy configuration in kickstart
+      ansible.builtin.assert:
+        that:
+          - "'--proxy=\"http://test-proxy:3128\"' in ks"
+          - "'proxy=http://test-proxy:3128' in ks"
+        fail_msg: "Proxy configuration not found in kickstart"
+
+    # =========================================================================
+    # ADMIN USER + SSH KEY
+    # =========================================================================
+    - name: Verify admin user creation in post section
+      ansible.builtin.assert:
+        that:
+          - "'useradd -m -s /bin/bash -G wheel admin' in ks"
+          - "'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAnsibleKey admin@molecule' in ks"
+        fail_msg: "Admin user configuration not found in kickstart"
+
+    # =========================================================================
+    # ROOT SSH DISABLED
+    # =========================================================================
+    - name: Verify PermitRootLogin disabled in kickstart
+      ansible.builtin.assert:
+        that:
+          - "'PermitRootLogin no' in ks"
+        fail_msg: "PermitRootLogin no not found in kickstart"
+
+    # =========================================================================
+    # PACKAGES
+    # =========================================================================
+    - name: Verify packages section
+      ansible.builtin.assert:
+        that:
+          - "'@minimal-environment' in ks"
+          - "'openssh-server' in ks"
+          - "'python3' in ks"
+          - "'sudo' in ks"
+        fail_msg: "Package configuration is incorrect"
+
+# =============================================================================
+# Post-Install Bootstrap Verification
+# =============================================================================
+- name: Verify | Post-install bootstrap
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    # =========================================================================
+    # ROCKY LINUX DETECTED
+    # =========================================================================
+    - name: Verify Rocky Linux distribution
+      ansible.builtin.setup:
+        filter: ansible_distribution*
+      register: distro_facts
+
+    - name: Assert Rocky Linux
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['distribution'] == 'Rocky'
+        fail_msg: "Not running Rocky Linux"
+
+    # =========================================================================
+    # PACKAGES UPDATED
+    # =========================================================================
+    - name: Check system is up to date
+      ansible.builtin.dnf:
+        name: '*'
+        state: latest  # noqa: package-latest
+      check_mode: true
+      register: update_check
+
+    - name: Assert system is up to date
+      ansible.builtin.assert:
+        that:
+          - not update_check.changed
+        fail_msg: "System has pending updates"

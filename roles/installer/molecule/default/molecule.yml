@@ -1,0 +1,50 @@
+---
+driver:
+  name: podman
+
+platforms:
+  - name: rocky-installer-rocky9
+    image: docker.io/geerlingguy/docker-rockylinux9-ansible:latest
+    pre_build_image: true
+    command: /usr/lib/systemd/systemd
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      /run: "rw,nosuid,nodev,size=65536k"
+      /tmp: "rw,nosuid,nodev"
+  - name: rocky-installer-rocky10
+    image: docker.io/geerlingguy/docker-rockylinux10-ansible:latest
+    pre_build_image: true
+    command: /usr/lib/systemd/systemd
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      /run: "rw,nosuid,nodev,size=65536k"
+      /tmp: "rw,nosuid,nodev"
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      allow_broken_conditionals: true
+  inventory:
+    host_vars:
+      rocky-installer-rocky9:
+        ansible_python_interpreter: /usr/bin/python3
+      rocky-installer-rocky10:
+        ansible_python_interpreter: /usr/bin/python3
+
+verifier:
+  name: ansible
+
+scenario:
+  test_sequence:
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - verify
+    - cleanup
+    - destroy

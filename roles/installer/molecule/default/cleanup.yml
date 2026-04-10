@@ -1,0 +1,11 @@
+---
+- name: Cleanup | Remove generated kickstart files
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Remove .tmp directory
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/.tmp"
+        state: absent

@@ -1,0 +1,11 @@
+---
+# ansible-lint configuration for marcstraube.rocky collection
+
+# rocky_* prefix is the user-facing API (role is 'installer')
+skip_list:
+  - var-naming[no-role-prefix]
+  - galaxy[no-changelog]
+
+# Warn about these rules but don't fail
+warn_list:
+  - experimental

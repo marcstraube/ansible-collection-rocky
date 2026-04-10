@@ -1,0 +1,35 @@
+---
+# =============================================================================
+# Kickstart Generation — DHCP + Auto Partitioning
+# =============================================================================
+# Lightweight scenario: template rendering only, no containers needed.
+# Tests the DHCP network, auto partitioning, and Rocky 9 code paths.
+# =============================================================================
+- name: Converge | Kickstart (DHCP + auto)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    rocky_installer_mode: kickstart
+    rocky_root_password: "moleculetest"
+    rocky_version: 9
+    rocky_kickstart_network:
+      method: dhcp
+      device: eth0
+      hostname: test-dhcp
+    rocky_disk:
+      device: vda
+      method: auto
+    rocky_selinux: permissive
+    rocky_kickstart_firewall_services:
+      - ssh
+    rocky_proxy: ""
+    rocky_admin_user: admin
+    rocky_admin_ssh_key: ""
+    rocky_kickstart_output: "{{ playbook_dir }}/.tmp/kickstart-dhcp-auto.cfg"
+
+  tasks:
+    - name: Include installer role (DHCP + auto)  # noqa: role-name[path]
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/../.."

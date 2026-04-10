@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# Rocky Linux Installer Main Tasks
+# =============================================================================
+# Dispatches to kickstart generation or post-install configuration
+# based on rocky_installer_mode variable.
+# =============================================================================
+
+- name: Main | Include kickstart generation tasks
+  ansible.builtin.include_tasks:
+    file: 01-kickstart.yml
+    apply:
+      tags: [rocky, rocky:kickstart]
+  tags: [rocky, rocky:kickstart]
+  when: rocky_installer_mode == 'kickstart'
+
+- name: Main | Include post-install configuration tasks
+  ansible.builtin.include_tasks:
+    file: 02-post-install.yml
+    apply:
+      tags: [rocky, rocky:post-install]
+  tags: [rocky, rocky:post-install]
+  when: rocky_installer_mode == 'post_install'

@@ -1,0 +1,38 @@
+---
+# =============================================================================
+# Kickstart File Generation
+# =============================================================================
+# Generates a Kickstart configuration file from template.
+# Runs locally (delegate_to: localhost).
+# =============================================================================
+
+- name: Kickstart | Hash root password
+  ansible.builtin.set_fact:
+    __rocky_root_password_hash: >-
+      {{ rocky_root_password | password_hash('sha512',
+         65534 | random(seed=inventory_hostname)) }}
+  changed_when: false
+  when: rocky_root_password is defined and rocky_root_password | length > 0
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Kickstart | Ensure output directory exists
+  ansible.builtin.file:
+    path: "{{ rocky_kickstart_output | dirname }}"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  become: false
+
+- name: Kickstart | Generate kickstart file from template
+  ansible.builtin.template:
+    src: kickstart.cfg.j2
+    dest: "{{ rocky_kickstart_output }}"
+    mode: '0644'
+  delegate_to: localhost
+  become: false
+
+- name: Kickstart | Display output path
+  ansible.builtin.debug:
+    msg: "Kickstart file generated: {{ rocky_kickstart_output }}"

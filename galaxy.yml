@@ -1,0 +1,40 @@
+---
+namespace: marcstraube
+name: rocky
+version: 1.0.0
+readme: README.md
+authors:
+  - Marc Straube <email@marcstraube.de>
+description: >-
+  Ansible collection for automated Rocky Linux server installation via
+  Kickstart netinstall with support for DHCP/static networking, LVM
+  partitioning, and post-install configuration.
+license_file: LICENSE
+tags:
+  - rocky
+  - linux
+  - installation
+  - kickstart
+  - netinstall
+  - server
+  - lvm
+dependencies:
+  marcstraube.common: ">=1.0.0"
+  community.general: ">=8.0.0"
+  community.crypto: ">=2.0.0"
+  ansible.posix: ">=1.5.0"
+repository: https://github.com/marcstraube/ansible-collection-rocky
+documentation: https://github.com/marcstraube/ansible-collection-rocky
+homepage: https://github.com/marcstraube/ansible-collection-rocky
+issues: https://github.com/marcstraube/ansible-collection-rocky/issues
+build_ignore:
+  - '*.tar.gz'
+  - '.git'
+  - '.github'
+  - '.gitlab-ci.yml'
+  - '.ansible'
+  - '.claude'
+  - '.venv'
+  - '*.pyc'
+  - '__pycache__'
+  - 'roles/*/molecule'

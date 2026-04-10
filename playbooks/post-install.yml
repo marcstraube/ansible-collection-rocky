@@ -1,0 +1,45 @@
+---
+# =============================================================================
+# Rocky Linux Post-Install Configuration
+# =============================================================================
+# Usage:
+#   ansible-playbook collections/ansible_collections/marcstraube/rocky/playbooks/post-install.yml
+#   ansible-playbook collections/ansible_collections/marcstraube/rocky/playbooks/post-install.yml -l myserver
+#
+# The installer role handles the Rocky-specific bootstrap (verify OS, proxy,
+# initial update). Common roles handle everything else (users, SSH, sudo,
+# packages). This mirrors the archlinux collection pattern where the installer
+# sets up the base system and common roles do the rest.
+# =============================================================================
+
+- name: Rocky Linux Post-Install Configuration
+  hosts: rocky_servers
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Include installer role (post_install mode)
+      ansible.builtin.include_role:
+        name: marcstraube.rocky.installer
+      vars:
+        rocky_installer_mode: post_install
+
+    - name: Include users role
+      ansible.builtin.include_role:
+        name: marcstraube.common.users
+      when: users_list | default([]) | length > 0
+
+    - name: Include sudo role
+      ansible.builtin.include_role:
+        name: marcstraube.common.sudo
+      when: sudo_enabled | default(true) | bool
+
+    - name: Include openssh role
+      ansible.builtin.include_role:
+        name: marcstraube.common.openssh
+      when: openssh_enabled | default(true) | bool
+
+    - name: Include package_management role
+      ansible.builtin.include_role:
+        name: marcstraube.common.package_management
+      when: package_management_enabled | default(true) | bool

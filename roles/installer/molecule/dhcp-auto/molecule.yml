@@ -1,0 +1,25 @@
+---
+driver:
+  name: default
+  options:
+    managed: false
+
+platforms:
+  - name: localhost
+    managed: false
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      allow_broken_conditionals: true
+
+verifier:
+  name: ansible
+
+scenario:
+  test_sequence:
+    - converge
+    - idempotence
+    - verify
+    - cleanup
