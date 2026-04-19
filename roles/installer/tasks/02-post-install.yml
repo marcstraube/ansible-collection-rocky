@@ -35,3 +35,5 @@
     name: '*'
     state: latest
     update_cache: true
+  retries: 3
+  delay: 5
