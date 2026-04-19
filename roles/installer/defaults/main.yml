@@ -1,29 +1,21 @@
 ---
-# =============================================================================
-# Rocky Linux Installer Configuration
-# =============================================================================
-# Role: marcstraube.rocky.installer
-# Description: Generate Kickstart files for Rocky Linux netinstall and
-#              perform post-install configuration.
-# =============================================================================
-
-# =============================================================================
-# ROLE CONTROL
-# =============================================================================
+#
+# Role Control
+#
 
 # Installer mode: kickstart | post_install
 rocky_installer_mode: kickstart
 
-# =============================================================================
-# ROCKY LINUX VERSION
-# =============================================================================
+#
+# Rocky Linux Version
+#
 
 rocky_version: 10
 rocky_release: "latest"
 
-# =============================================================================
-# NETWORK CONFIGURATION
-# =============================================================================
+#
+# Network Configuration
+#
 
 rocky_kickstart_network:
   method: dhcp                    # dhcp | static
@@ -35,9 +27,9 @@ rocky_kickstart_network:
   gateway: ""
   nameserver: "1.1.1.1"
 
-# =============================================================================
-# DISK / PARTITIONING
-# =============================================================================
+#
+# Disk / Partitioning
+#
 
 rocky_disk:
   device: sda
@@ -47,17 +39,17 @@ rocky_disk:
   lv_root_size: 0                 # 0 = use remaining space
   lv_swap_size: 4096              # MB
 
-# =============================================================================
-# LOCALE
-# =============================================================================
+#
+# Locale
+#
 
 rocky_timezone: Europe/Berlin
 rocky_locale: en_US.UTF-8
 rocky_keyboard: de
 
-# =============================================================================
-# PACKAGES
-# =============================================================================
+#
+# Packages
+#
 
 rocky_package_group: "@minimal-environment"
 rocky_additional_packages:
@@ -65,9 +57,9 @@ rocky_additional_packages:
   - python3
   - sudo
 
-# =============================================================================
-# SECURITY
-# =============================================================================
+#
+# Security
+#
 
 # SELinux mode: enforcing | permissive | disabled
 rocky_selinux: enforcing
@@ -79,30 +71,30 @@ rocky_kickstart_firewall_services:
 # Root password (use vault!)
 rocky_root_password: "{{ vault_rocky_root_password }}"
 
-# =============================================================================
-# SECONDARY NETWORK (optional)
-# =============================================================================
+#
+# Secondary Network (optional)
+#
 
 # rocky_kickstart_network_secondary:
 #   ip: ""
 #   prefix: 24
 
-# =============================================================================
-# PROXY
-# =============================================================================
+#
+# Proxy
+#
 
 # HTTP proxy for package downloads (empty = no proxy)
 rocky_proxy: ""
 
-# =============================================================================
-# ADMIN USER
-# =============================================================================
+#
+# Admin User
+#
 
 rocky_admin_user: admin
 rocky_admin_ssh_key: ""
 
-# =============================================================================
-# KICKSTART OUTPUT
-# =============================================================================
+#
+# Kickstart Output
+#
 
 rocky_kickstart_output: "{{ playbook_dir }}/.tmp/kickstart-{{ inventory_hostname }}.cfg"

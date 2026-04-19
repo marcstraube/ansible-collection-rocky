@@ -20,9 +20,10 @@ This role operates in two modes controlled by `rocky_installer_mode`:
 
 ## Supported Platforms
 
-| Platform    | Versions |
-| ----------- | -------- |
-| Rocky Linux | 9, 10    |
+| Platform                   | Notes |
+| -------------------------- | ----- |
+| EL 9 (Rocky, Alma, RHEL)   |       |
+| EL 10 (Rocky, Alma, RHEL)  |       |
 
 ## Role Variables
 
