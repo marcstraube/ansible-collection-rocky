@@ -3,14 +3,14 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 # One CI run per pull request: a new commit cancels the run of the previous
-# one. Pushes to main get a group of their own per commit, so a merge run is
-# never cancelled or queued behind another.
+# one. Pushes to main and develop get a group of their own per commit, so a
+# merge run is never cancelled or queued behind another.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -85,14 +85,18 @@ jobs:
 
   # =============================================================================
   # DETECT CHANGED ROLES
-  # Determines which roles need molecule testing based on git diff.
+  # Determines which podman roles need molecule testing based on git diff.
   # Only substantive changes trigger tests (not README-only edits).
-  # Shared file changes (galaxy.yml, plugins/, meta/runtime.yml) test all roles.
+  # Shared file changes (galaxy.yml dependencies, requirements.yml, plugins/,
+  # meta/runtime.yml and this workflow) test all roles.
+  # Scenarios with other drivers (installer dhcp-auto) run locally.
+  # On workflow_dispatch: full matrix (all roles × all platforms).
   # =============================================================================
   detect-changes:
     name: Detect Changed Roles
     runs-on: ubuntu-24.04
     outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
       has_roles: ${{ steps.set-matrix.outputs.has_roles }}
     steps:
       - name: Checkout code
@@ -100,72 +104,154 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Determine changed roles
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
+      - name: Determine roles and platforms to test
         id: set-matrix
         run: |
-          # The release PR carries the tree of main plus the version bump and
-          # the changelog; every commit on main passed the matrix when its PR
-          # merged, so there is nothing new to test here.
-          if [ "${{ github.head_ref }}" = "release-please--branches--main" ]; then
+          # Auto-detect podman roles from molecule driver config
+          ALL_PODMAN_ROLES=""
+          for f in roles/*/molecule/default/molecule.yml; do
+            if grep -q 'name: podman' "$f"; then
+              role=$(echo "$f" | cut -d/ -f2)
+              ALL_PODMAN_ROLES="$ALL_PODMAN_ROLES $role"
+            fi
+          done
+
+          # On schedule or manual dispatch: test everything
+          EVENT="${{ github.event_name }}"
+          if [ "$EVENT" = "schedule" ] || [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "Event '$EVENT' — full matrix (all roles × all platforms)"
+            ROLES="$ALL_PODMAN_ROLES"
+          elif [ "${{ github.head_ref }}" = "release-please--branches--main" ]; then
+            # The release PR carries the tree of main plus the version bump
+            # and the changelog; every commit on main passed the matrix when
+            # its PR merged, so there is nothing new to test here.
             echo "Release PR — skipping the molecule matrix"
+            ROLES=""
+          elif [ "${{ github.head_ref }}" = "develop" ] || [ "${{ github.head_ref }}" = "main" ]; then
+            # Merges between the long-lived branches (the release merge of
+            # develop into main, the back-merge of main into develop) only
+            # carry commits whose PRs passed the matrix already.
+            echo "Merge between main and develop — skipping the molecule matrix"
+            ROLES=""
+          else
+            # Determine base commit for diff
+            if [ "$EVENT" = "pull_request" ]; then
+              BASE="${{ github.event.pull_request.base.sha }}"
+            elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+              BASE="${{ github.event.before }}"
+            else
+              echo "Initial or force push — testing all roles"
+              BASE=""
+            fi
+
+            # If no valid base, test all podman roles
+            if [ -z "$BASE" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
+              ROLES="$ALL_PODMAN_ROLES"
+            else
+              CHANGED=$(git diff --name-only "$BASE" "${{ github.sha }}")
+
+              # galaxy.yml affects every role through its dependencies
+              # only; changes to the version, description or tags affect
+              # none and fall through to the per-role detection.
+              GALAXY_DEPS=unchanged
+              if echo "$CHANGED" | grep -qx 'galaxy\.yml'; then
+                GALAXY_DEPS=$(python3 -c "
+          import subprocess, sys, yaml
+          def deps(rev):
+              out = subprocess.run(['git', 'show', rev + ':galaxy.yml'],
+                                   capture_output=True, text=True)
+              if out.returncode != 0:
+                  return None
+              return (yaml.safe_load(out.stdout) or {}).get('dependencies')
+          print('unchanged' if deps(sys.argv[1]) == deps(sys.argv[2]) else 'changed')
+          " "$BASE" "${{ github.sha }}")
+                echo "galaxy.yml dependencies: $GALAXY_DEPS"
+              fi
+
+              # Shared files that require testing all roles
+              if [ "$GALAXY_DEPS" = "changed" ] \
+                || echo "$CHANGED" | grep -qE '^(requirements\.yml|plugins/|meta/runtime\.yml|\.github/workflows/ci\.yml)'; then
+                echo "Shared files changed — testing all roles"
+                ROLES="$ALL_PODMAN_ROLES"
+              else
+                # Find roles with substantive changes (skip README-only)
+                ROLES=$(echo "$CHANGED" \
+                  | grep '^roles/' \
+                  | grep -v '/README\.md$' \
+                  | sed 's|^roles/\([^/]*\)/.*|\1|' \
+                  | sort -u \
+                  | tr '\n' ' ')
+
+                # Filter to podman roles only
+                FILTERED=""
+                for role in $ROLES; do
+                  if echo " $ALL_PODMAN_ROLES " | grep -q " $role "; then
+                    FILTERED="$FILTERED $role"
+                  fi
+                done
+                ROLES="$FILTERED"
+              fi
+            fi
+          fi
+
+          # Build JSON matrix: one entry per (role, scenario, platform).
+          # All molecule scenarios (default plus extras like 'dhcp-auto') are
+          # discovered; platforms come from each scenario's molecule.yml.
+          # Only podman scenarios run here.
+          MATRIX="["
+          FIRST=true
+          for role in $ROLES; do
+            [ -z "$role" ] && continue
+            for scenario_dir in roles/$role/molecule/*/; do
+              scenario=$(basename "$scenario_dir")
+              mol="${scenario_dir}molecule.yml"
+              [ -f "$mol" ] || continue
+              grep -q 'name: podman' "$mol" || continue
+              platforms=$(python3 -c "
+          import yaml, sys
+          with open(sys.argv[1]) as f:
+              data = yaml.safe_load(f)
+          for p in data.get('platforms', []):
+              print(p['name'])
+          " "$mol")
+              for platform in $platforms; do
+                if [ "$FIRST" = "true" ]; then
+                  FIRST=false
+                else
+                  MATRIX="${MATRIX},"
+                fi
+                MATRIX="${MATRIX}{\"role\":\"${role}\",\"scenario\":\"${scenario}\",\"platform\":\"${platform}\"}"
+              done
+            done
+          done
+          MATRIX="${MATRIX}]"
+
+          if [ "$MATRIX" = "[]" ]; then
             echo "has_roles=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Determine base commit for diff
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="${{ github.event.pull_request.base.sha }}"
-          elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-            BASE="${{ github.event.before }}"
-          else
-            echo "Initial or force push — testing all roles"
-            echo "has_roles=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [ -z "$BASE" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
-            echo "has_roles=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          CHANGED=$(git diff --name-only "$BASE" "${{ github.sha }}")
-
-          # Shared files that require testing all roles
-          if echo "$CHANGED" | grep -qE '^(galaxy\.yml|requirements\.yml|plugins/|meta/runtime\.yml)'; then
-            echo "Shared files changed — testing all roles"
-            echo "has_roles=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Check for substantive role changes (skip README-only)
-          ROLES=$(echo "$CHANGED" \
-            | grep '^roles/' \
-            | grep -v '/README\.md$' \
-            | sed 's|^roles/\([^/]*\)/.*|\1|' \
-            | sort -u)
-
-          if [ -n "$ROLES" ]; then
-            echo "Roles to test: $ROLES"
-            echo "has_roles=true" >> "$GITHUB_OUTPUT"
-          else
             echo "No roles to test"
-            echo "has_roles=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_roles=true" >> "$GITHUB_OUTPUT"
+            echo "Roles to test: $ROLES"
+            echo "Matrix entries: $(echo "$MATRIX" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
           fi
+
+          echo "matrix={\"include\":${MATRIX}}" >> "$GITHUB_OUTPUT"
 
   # =============================================================================
-  # MOLECULE ROLE TESTS (Rocky 9 + Rocky 10)
+  # MOLECULE ROLE × SCENARIO × PLATFORM (changed roles × all their
+  # podman scenarios and platforms; full matrix on workflow_dispatch)
   # =============================================================================
   molecule-roles:
-    name: Molecule ${{ matrix.role }} (${{ matrix.platform }})
+    name: Molecule ${{ matrix.role }} / ${{ matrix.scenario }} (${{ matrix.platform }})
     runs-on: ubuntu-24.04
     needs: [lint, markdown-lint, yaml-lint, detect-changes]
     if: needs.detect-changes.outputs.has_roles == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { role: installer, platform: rocky-installer-rocky9 }
-          - { role: installer, platform: rocky-installer-rocky10 }
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
 
     steps:
       - name: Checkout code
@@ -200,7 +286,7 @@ jobs:
 
       - name: Run Molecule test
         working-directory: roles/${{ matrix.role }}
-        run: molecule test
+        run: molecule test -s ${{ matrix.scenario }}
         env:
           MOLECULE_PLATFORM_NAME: ${{ matrix.platform }}
           PY_COLORS: '1'
