@@ -2,6 +2,16 @@
 
 All notable changes to this collection will be documented in this file.
 
+## 1.0.2 (2026-10-22)
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+
+## New Contributors
+* @dependabot[bot] made their first contribution in https://github.com/marcstraube/ansible-collection-rocky/pull/11
+
+**Full Changelog**: https://github.com/marcstraube/ansible-collection-rocky/compare/v1.0.1...v1.0.2
+
 ## [1.0.1](https://github.com/marcstraube/ansible-collection-rocky/compare/v1.0.0...v1.0.1) (2026-04-19)
 
 
