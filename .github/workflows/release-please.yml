@@ -58,7 +58,7 @@ jobs:
             echo "releasable=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: googleapis/release-please-action@v5.0.0
+      - uses: googleapis/release-please-action@v5
         id: release
         if: steps.releasable.outputs.releasable == 'true'
         with:
