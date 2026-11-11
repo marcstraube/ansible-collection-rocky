@@ -41,7 +41,6 @@ roles/<role_name>/
 │   ├── configure.yml       # Configuration tasks
 │   ├── service.yml         # Service management
 │   ├── btrfs.yml           # BTRFS optimizations (if applicable)
-│   ├── firewall.yml        # Firewalld integration (if applicable)
 │   └── apparmor.yml        # AppArmor integration (if applicable)
 ├── templates/*.j2          # Jinja2 templates
 ├── vars/

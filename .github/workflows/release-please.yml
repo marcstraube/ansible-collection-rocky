@@ -24,7 +24,7 @@ jobs:
       - uses: actions/create-github-app-token@v3
         id: app-token
         with:
-          app-id: ${{ vars.RELEASE_BOT_APP_ID }}
+          client-id: ${{ vars.RELEASE_BOT_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
 
       - uses: actions/checkout@v7
@@ -58,7 +58,7 @@ jobs:
             echo "releasable=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: googleapis/release-please-action@v5.0.0
+      - uses: googleapis/release-please-action@v5
         id: release
         if: steps.releasable.outputs.releasable == 'true'
         with:
@@ -101,7 +101,7 @@ jobs:
       - uses: actions/create-github-app-token@v3
         id: app-token
         with:
-          app-id: ${{ vars.RELEASE_BOT_APP_ID }}
+          client-id: ${{ vars.RELEASE_BOT_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
 
       - name: Check for changes to merge back
